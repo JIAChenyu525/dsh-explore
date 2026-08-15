@@ -15,8 +15,14 @@ export function uct(node: SearchNode, parentVisits: number, c: number): number {
   return node.totalValue / node.visits + c * Math.sqrt(Math.log(parentVisits) / node.visits)
 }
 
-export function makeNode(parentId: string | null, id: string, depth: number): SearchNode {
-  return { id, parentId, depth, visits: 0, totalValue: 0, children: [] }
+export function makeNode(
+  parentId: string | null,
+  id: string,
+  depth: number,
+  sessionId: string,
+  trajectory: Trajectory | null,
+): SearchNode {
+  return { id, parentId, depth, visits: 0, totalValue: 0, children: [], sessionId, trajectory }
 }
 
 /** Descend from the root to a leaf using UCT. */
@@ -86,12 +92,13 @@ export async function selectBest(
  * none of the tree bookkeeping (EvoScale's Best@N result).
  */
 export async function bestOfN(run: Runner, config: SearchConfig): Promise<SearchResult> {
-  const root = makeNode(null, 'root', 0)
+  const root = makeNode(null, 'root', 0, config.rootSessionId, null)
   const nodes = new Map<string, SearchNode>([[root.id, root]])
 
   const specs = Array.from({ length: config.branchingFactor }, (_, i) => ({
     variationIndex: i,
     variationPrompt: variationPrompt(config.branchingFactor, i),
+    forkFrom: config.rootSessionId,
   }))
 
   const trajectories = await Promise.all(specs.map(run))
@@ -118,7 +125,7 @@ export async function bestOfN(run: Runner, config: SearchConfig): Promise<Search
  * decides where the next expansion budget goes.
  */
 export async function mcts(run: Runner, config: SearchConfig): Promise<SearchResult> {
-  const root = makeNode(null, 'root', 0)
+  const root = makeNode(null, 'root', 0, config.rootSessionId, null)
   const nodes = new Map<string, SearchNode>([[root.id, root]])
 
   let best: { trajectory: Trajectory; verdict: Verdict } | null = null
@@ -131,6 +138,7 @@ export async function mcts(run: Runner, config: SearchConfig): Promise<SearchRes
     const specs = Array.from({ length: config.branchingFactor }, (_, i) => ({
       variationIndex: i,
       variationPrompt: variationPrompt(config.branchingFactor, i),
+      forkFrom: leaf.sessionId,
     }))
 
     const trajectories = await Promise.all(specs.map(run))
@@ -140,7 +148,7 @@ export async function mcts(run: Runner, config: SearchConfig): Promise<SearchRes
       const verdict = await config.verifier(t)
       best = bestSoFar(best, t, verdict)
 
-      const child = makeNode(leaf.id, `n${++idSeq}`, leaf.depth + 1)
+      const child = makeNode(leaf.id, `n${++idSeq}`, leaf.depth + 1, t.sessionId, t)
       nodes.set(child.id, child)
       leaf.children.push(child.id)
       backprop(nodes, child, verdict.score)

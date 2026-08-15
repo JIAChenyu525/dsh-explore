@@ -60,6 +60,8 @@ export type Verifier = (trajectory: Trajectory) => Promise<Verdict>
 export interface VariationSpec {
   variationIndex: number
   variationPrompt: string
+  /** Session id to fork from — the root for level 1, a child's session deeper. */
+  forkFrom: string
 }
 
 /** Runner: fork + run one exploration path from a variation spec. */
@@ -72,6 +74,8 @@ export interface SearchConfig {
   maxNodes: number
   /** UCT exploration constant (MCTS only). */
   explorationConstant: number
+  /** Session id the first level forks from. */
+  rootSessionId: string
   verifier: Verifier
 }
 
@@ -82,6 +86,10 @@ export interface SearchNode {
   visits: number
   totalValue: number
   children: string[]
+  /** Session id to fork from for this node's children. */
+  sessionId: string
+  /** The trajectory this node's fork produced (null for the root). */
+  trajectory: Trajectory | null
 }
 
 export interface SearchResult {

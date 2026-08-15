@@ -1,14 +1,15 @@
 import {
-  diffTrajectories,
+  bestOfN,
   extractPatch,
+  mcts,
   proposePatchPrompt,
-  selectBest,
   variationPrompt,
   verdictFromRun,
   type Runner,
   type ToolStep,
   type Trajectory,
   type VariationSpec,
+  type Verdict,
   type Verifier,
 } from '@dsh-explore/core'
 import { randomUUID } from 'node:crypto'
@@ -55,6 +56,14 @@ export function apply(ctx: any) {
           type: 'integer',
           description: 'Max output tokens per branch (default 2000).',
         },
+        mode: {
+          type: 'string',
+          description: "Search mode: 'flat' (best-of-N, default) or 'mcts' (tree search).",
+        },
+        max_nodes: {
+          type: 'integer',
+          description: 'Total fork budget for MCTS (default 3×branches, max 32).',
+        },
       },
     },
     output: {
@@ -69,59 +78,79 @@ export function apply(ctx: any) {
       const verifyCommand = stringOr(args?.verify, null)
       const timeoutMs = clamp(intOr(args?.timeout_seconds, 120), 10, 600) * 1000
       const maxTokens = clamp(intOr(args?.max_tokens, 2000), 256, 32000)
+      const mode = args?.mode === 'mcts' ? 'mcts' : 'flat'
+      const maxNodes = clamp(intOr(args?.max_nodes, n * 3), n, 32)
+
+      // sessionId → live Agent. Seeded with the root so forks always resolve.
+      const sessions = new Map<string, any>([[String(parent.session.id), parent]])
+      const runs = new Map<string, any>()
 
       const runner: Runner = (spec: VariationSpec) =>
-        forkAndRun(ctx, parent, exec.signal, spec, timeoutMs, maxTokens)
+        forkAndRun(ctx, sessions, runs, parent, exec.signal, spec, timeoutMs, maxTokens)
 
-      const trajectories = await Promise.all(
-        Array.from({ length: n }, (_, i) =>
-          runner({
-            variationIndex: i,
-            variationPrompt: verifyCommand
-              ? proposePatchPrompt(n, i, verifyCommand)
-              : variationPrompt(n, i),
-          }),
-        ),
-      )
+      const verifier: Verifier = verifyCommand
+        ? worktreeVerifier(ctx.shell, verifyCommand)
+        : defaultVerifier
 
-      if (verifyCommand) {
-        const best = await selectBest(trajectories, worktreeVerifier(ctx.shell, verifyCommand))
-        if (!best) return { winner: null, branches: branchList(trajectories) }
-
-        const loser = trajectories.find((t) => t !== best.winner) ?? best.winner
-        return {
-          verifyCommand,
-          winner: {
-            index: trajectories.indexOf(best.winner) + 1,
-            passed: best.verdict.passed,
-            evidence: best.verdict.evidence,
-            answer: best.winner.output,
-          },
-          diff: diffTrajectories(best.winner, loser),
-          branches: branchList(trajectories),
-        }
+      const config = {
+        branchingFactor: n,
+        maxNodes,
+        explorationConstant: Math.SQRT2,
+        rootSessionId: String(parent.session.id),
+        verifier,
       }
 
-      return { branches: branchList(trajectories) }
+      const result = mode === 'mcts' ? await mcts(runner, config) : await bestOfN(runner, config)
+
+      // Cleanup: dispose every child we spawned (kept live during the search).
+      for (const run of runs.values()) {
+        try { await run.dispose() } catch {}
+      }
+
+      const trajectories = result.nodes
+        .filter((nd) => nd.trajectory)
+        .map((nd) => nd.trajectory!)
+
+      return {
+        mode,
+        explored: result.explored,
+        winner: verifyCommand && result.winner && result.verdict
+          ? {
+              passed: result.verdict.passed,
+              evidence: result.verdict.evidence,
+              answer: result.winner.output,
+            }
+          : null,
+        branches: branchList(trajectories),
+      }
     },
   })
 }
 
 async function forkAndRun(
   ctx: any,
-  parent: any,
+  sessions: Map<string, any>,
+  runs: Map<string, any>,
+  rootParent: any,
   signal: AbortSignal,
   spec: VariationSpec,
   timeoutMs: number,
   maxTokens: number,
 ): Promise<Trajectory> {
+  // Fork from the session this spec names (root for level 1, a child deeper).
+  const forkParent = sessions.get(spec.forkFrom) ?? rootParent
+
   const run = await ctx.subagents.start('fork', {
     label: `explore-${spec.variationIndex + 1}`,
     prompt: [{ type: 'text', text: spec.variationPrompt }],
-    parent,
+    parent: forkParent,
     agentOptions: { maxTokens },
     signal: AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]),
   })
+
+  // Keep the child live + registered so deeper forks can branch from it.
+  sessions.set(String(run.id), run.localAgent)
+  runs.set(String(run.id), run)
 
   const result = await Promise.race([
     run.result,
@@ -132,14 +161,7 @@ async function forkAndRun(
   ])
   run.result.catch(() => {})
 
-  // Extract the tool-call sequence before the child leaves the store.
   const steps = extractSteps(run.localAgent?.session?.events ?? [])
-
-  try {
-    await run.dispose()
-  } catch {
-    // best-effort teardown.
-  }
 
   return {
     sessionId: String(run.id ?? `explore-${spec.variationIndex + 1}`),
@@ -147,6 +169,16 @@ async function forkAndRun(
     steps,
     turnCount: 0,
     stopReason: String(result.stopReason),
+  }
+}
+
+/** Low-confidence fallback verifier when no executable command is supplied. */
+const defaultVerifier: Verifier = async (t: Trajectory): Promise<Verdict> => {
+  const ok = t.stopReason === 'completed' && t.output.length > 0
+  return {
+    passed: ok,
+    score: ok ? 0.5 : 0,
+    evidence: ['no execution verifier (--verify); low confidence', `stopReason=${t.stopReason}`],
   }
 }
 
@@ -243,17 +275,15 @@ function branchList(trajectories: Trajectory[]): any[] {
 
 function renderResult(value: any): string {
   const lines: string[] = []
+  lines.push(`mode=${value?.mode ?? 'flat'}, explored=${value?.explored ?? 0} branch(es)`)
   if (value?.winner) {
-    lines.push(`WINNER: branch #${value.winner.index} [${value.winner.passed ? 'PASS' : 'fail'}]`)
-    lines.push(`verified with: ${value.verifyCommand}`)
-    lines.push(`why: ${value.diff?.summary ?? ''}`)
+    lines.push(`WINNER [${value.winner.passed ? 'PASS' : 'fail'}]`)
+    lines.push(`evidence: ${(value.winner.evidence ?? []).join('; ')}`)
     lines.push(`\n${truncate(value.winner.answer, 400)}`)
-  } else {
-    const branches = value?.branches ?? []
-    lines.push(`${branches.length} branch(es):`)
-    for (const b of branches) {
-      lines.push(`\n#${b.index} [${b.stopReason}] (${b.steps} step(s))\n${truncate(b.answer, 240) || '(no output)'}`)
-    }
+  }
+  const branches = value?.branches ?? []
+  for (const b of branches) {
+    lines.push(`\n#${b.index} [${b.stopReason}] (${b.steps} step(s))\n${truncate(b.answer, 240) || '(no output)'}`)
   }
   return lines.join('\n')
 }
