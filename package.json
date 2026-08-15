@@ -1,0 +1,11 @@
+{
+  "name": "dsh-explore-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Trajectory-level tree search for DeepSeek Harness agents — fork N explorations, verify with execution, keep the winner.",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test"
+  }
+}

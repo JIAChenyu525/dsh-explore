@@ -1,0 +1,17 @@
+{
+  "name": "dsh-explore",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "files": ["dist/index.js", "cordis.patch.yml"],
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
+  "scripts": {
+    "build": "node build.mjs",
+    "prepare": "node build.mjs"
+  },
+  "devDependencies": {
+    "@dsh-explore/core": "workspace:*",
+    "esbuild": "^0.28.0",
+    "typescript": "^5.6.0"
+  }
+}
