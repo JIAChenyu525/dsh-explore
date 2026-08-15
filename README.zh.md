@@ -1,5 +1,9 @@
 [English](README.md) | 中文
 
+<p align="center">
+  <img src="assets/cover.png" alt="dsh-explore" width="420" />
+</p>
+
 # dsh-explore
 
 **面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 智能体的轨迹级并行探索。**

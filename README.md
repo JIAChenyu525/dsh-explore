@@ -1,5 +1,9 @@
 [English](README.md) | [中文](README.zh.md)
 
+<p align="center">
+  <img src="assets/cover.png" alt="dsh-explore" width="420" />
+</p>
+
 # dsh-explore
 
 **Trajectory-level parallel exploration for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) agents.**
