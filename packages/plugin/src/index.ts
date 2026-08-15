@@ -1,5 +1,7 @@
 import {
   diffTrajectories,
+  extractPatch,
+  proposePatchPrompt,
   selectBest,
   variationPrompt,
   verdictFromRun,
@@ -61,7 +63,12 @@ export function apply(ctx: any) {
 
       const trajectories = await Promise.all(
         Array.from({ length: n }, (_, i) =>
-          runner({ variationIndex: i, variationPrompt: variationPrompt(n, i) }),
+          runner({
+            variationIndex: i,
+            variationPrompt: verifyCommand
+              ? proposePatchPrompt(n, i, verifyCommand)
+              : variationPrompt(n, i),
+          }),
         ),
       )
 
@@ -163,6 +170,7 @@ function branchList(trajectories: Trajectory[]): any[] {
     stopReason: t.stopReason,
     steps: t.steps.length,
     answer: t.output,
+    patch: extractPatch(t.output),
   }))
 }
 
