@@ -11,6 +11,10 @@ import {
   type VariationSpec,
   type Verifier,
 } from '@dsh-explore/core'
+import { randomUUID } from 'node:crypto'
+import { writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 /**
  * dsh-explore — trajectory-level search for DeepSeek Harness agents.
@@ -73,7 +77,7 @@ export function apply(ctx: any) {
       )
 
       if (verifyCommand) {
-        const best = await selectBest(trajectories, execVerifier(ctx.shell, verifyCommand))
+        const best = await selectBest(trajectories, worktreeVerifier(ctx.shell, verifyCommand))
         if (!best) return { winner: null, branches: branchList(trajectories) }
 
         const loser = trajectories.find((t) => t !== best.winner) ?? best.winner
@@ -136,17 +140,70 @@ async function forkAndRun(
   }
 }
 
-function execVerifier(shell: any, command: string): Verifier {
-  return async (_t: Trajectory) => {
-    const spec = shell.resolve({ command })
-    const run = await shell.run(spec)
-    return verdictFromRun({
-      exitCode: run.exitCode,
-      timedOut: run.timedOut,
-      aborted: run.aborted,
-      stdout: collectedText(run.stdout),
-      stderr: collectedText(run.stderr),
-    })
+interface ShellOutcome {
+  exitCode: number | null
+  timedOut: boolean
+  aborted: boolean
+  stdout: string
+  stderr: string
+}
+
+/** Run one command through dsh's shell seam, capturing the normalized outcome. */
+async function sh(shell: any, command: string, workdir?: string): Promise<ShellOutcome> {
+  const spec = shell.resolve({ command, ...(workdir ? { workdir } : {}) })
+  const run = await shell.run(spec)
+  return {
+    exitCode: run.exitCode,
+    timedOut: run.timedOut,
+    aborted: run.aborted,
+    stdout: collectedText(run.stdout),
+    stderr: collectedText(run.stderr),
+  }
+}
+
+/**
+ * v1 verifier: apply a branch's proposed diff to an isolated `git worktree`,
+ * run `command` there, and map the outcome to a ground-truth verdict.
+ *
+ * Isolation lives at the verify step, not the fork: fork branches stay read-only
+ * (they only propose diffs), so they share the parent cwd safely; each diff is
+ * then materialized + verified in its own worktree and torn down.
+ *
+ * Limitation: the worktree is checked out from HEAD, so a diff authored against
+ * uncommitted parent changes may not apply. The common case (clean repo) works.
+ */
+function worktreeVerifier(shell: any, command: string): Verifier {
+  return async (t: Trajectory): Promise<Verdict> => {
+    const patch = extractPatch(t.output)
+    if (!patch) {
+      return { passed: false, score: 0, evidence: ['branch produced no unified diff'] }
+    }
+
+    const wt = join(tmpdir(), `dsh-explore-${randomUUID()}`)
+    try {
+      const add = await sh(shell, `git worktree add --detach "${wt}"`)
+      if (add.exitCode !== 0) {
+        return { passed: false, score: 0, evidence: ['worktree add failed', truncate(add.stderr, 160)] }
+      }
+
+      const patchFile = join(wt, '.dsh-explore.patch')
+      await writeFile(patchFile, patch)
+      const apply = await sh(shell, `git apply "${patchFile}"`, wt)
+      if (apply.exitCode !== 0) {
+        return { passed: false, score: 0, evidence: ['patch did not apply', truncate(apply.stderr, 160)] }
+      }
+
+      const verify = await sh(shell, command, wt)
+      return verdictFromRun({
+        exitCode: verify.exitCode,
+        timedOut: verify.timedOut,
+        aborted: verify.aborted,
+        stdout: verify.stdout,
+        stderr: verify.stderr,
+      })
+    } finally {
+      await sh(shell, `git worktree remove --force "${wt}"`).catch(() => {})
+    }
   }
 }
 
