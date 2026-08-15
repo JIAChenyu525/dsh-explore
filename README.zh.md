@@ -15,6 +15,7 @@
 - **`explore` 工具** —— 并行 fork N 个子智能体，得到 N 个真正不同的答案。
 - **基于执行的验证**（`verify`）—— 对每个分支跑真实命令，保留通过的那个，绝不信智能体自述。
 - **赢家 diff** —— 解释「赢家为什么赢」：共享前缀 → 分歧的工具调用 → 错误计数。
+- **MCTS 树搜索**（`mode: 'mcts'`）—— 迭代：分叉 → 验证 → 回溯 → 重选 → 从最佳部分轨迹继续深分叉。
 - **确定性隔离** —— 分支间无共享可变状态；dsh 的 `fork` 用父会话精确的已完成轮次前缀做种子。
 
 ## 🚀 快速开始
@@ -67,8 +68,9 @@ dsh 自带的 `subagent` 工具在 agent loop 内部用 `exec.agent` fork 子智
 - [x] M1 —— 核心搜索库（`bestOfN` / `mcts` / UCT）
 - [x] M2 —— `explore` 工具，并行 fork N
 - [x] M3 —— 执行验证器（`ctx.shell` → verdict）
-- [x] M4 —— 赢家 diff（`diffTrajectories`）+ propose 模式（`extractPatch`）
-- [ ] M4b —— worktree 验证端到端（需 live 测试）
+- [x] M4 —— 赢家 diff + propose 模式 + worktree 验证器（v1）
+- [x] MCTS —— 真树搜索（`mode: 'mcts'`，mid-trajectory 分叉）
+- [ ] live —— worktree + MCTS 端到端（需 live 测试）
 - [ ] M5 —— npm 发布 + `dsh plugin add dsh-explore`
 
 ## ⚠️ 状态

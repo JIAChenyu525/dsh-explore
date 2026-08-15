@@ -15,6 +15,7 @@ When you need more than one answer, `dsh-explore` forks your agent into **N para
 - **`explore` tool** — fork N subagents in parallel and get N genuinely different answers.
 - **Execution-grounded verification** (`verify`) — run a real command against each branch and keep the one that passes. Never trusts an agent's self-report.
 - **Winner diff** — explains *why* the winner won: shared prefix → divergent tool calls → error counts.
+- **MCTS tree search** (`mode: 'mcts'`) — iterate: fork → verify → backprop → re-select → branch deeper from the best partial trajectories.
 - **Deterministic isolation** — branches share no mutable state; dsh's `fork` seeds each child from the parent's exact completed-turn prefix.
 
 ## 🚀 Quick start
@@ -67,8 +68,9 @@ dsh's own `subagent` tool forks children from `exec.agent` inside the agent loop
 - [x] M1 — core search library (`bestOfN` / `mcts` / UCT)
 - [x] M2 — `explore` tool, fork N in parallel
 - [x] M3 — execution verifier (`ctx.shell` → verdict)
-- [x] M4 — winner diff (`diffTrajectories`) + propose-mode (`extractPatch`)
-- [ ] M4b — worktree verify end-to-end (needs live test)
+- [x] M4 — winner diff + propose-mode + worktree verifier (v1)
+- [x] MCTS — real tree search (`mode: 'mcts'`, mid-trajectory branching)
+- [ ] live — worktree + MCTS end-to-end (needs live test)
 - [ ] M5 — npm publish + `dsh plugin add dsh-explore`
 
 ## ⚠️ Status
