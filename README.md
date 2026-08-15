@@ -1,3 +1,5 @@
+[English](README.md) | [中文](README.zh.md)
+
 # dsh-explore
 
 **Trajectory-level parallel exploration for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) agents.**
