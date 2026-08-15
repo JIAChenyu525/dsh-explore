@@ -1,7 +1,7 @@
 [English](README.md) | [中文](README.zh.md)
 
 <p align="center">
-  <img src="assets/cover.png" alt="dsh-explore" width="420" />
+  <img src="assets/cover.png" alt="dsh-explore" width="800" />
 </p>
 
 # dsh-explore
