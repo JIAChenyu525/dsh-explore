@@ -1,6 +1,7 @@
 {
   "name": "dsh-explore",
   "version": "0.1.0",
+  "description": "Trajectory-level parallel exploration for DeepSeek Harness agents",
   "type": "module",
   "main": "dist/index.js",
   "files": ["dist/index.js", "cordis.patch.yml"],
@@ -9,6 +10,8 @@
     "build": "node build.mjs",
     "prepare": "node build.mjs"
   },
+  "keywords": ["deepseek", "harness", "agent", "search", "plugin", "dsh-plugin"],
+  "license": "MIT",
   "devDependencies": {
     "@dsh-explore/core": "workspace:*",
     "esbuild": "^0.28.0",

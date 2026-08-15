@@ -28,8 +28,6 @@ import { join } from 'node:path'
 export const name = 'dsh-explore'
 export const inject = ['tools', 'subagents', 'shell']
 
-const BRANCH_TIMEOUT_MS = 120_000
-
 export function apply(ctx: any) {
   ctx.tools.register({
     name: 'explore',
@@ -49,6 +47,14 @@ export function apply(ctx: any) {
           type: 'string',
           description: 'Optional shell command used as ground truth to pick the winner (e.g. "npm test").',
         },
+        timeout_seconds: {
+          type: 'integer',
+          description: 'Per-branch timeout in seconds (default 120, max 600).',
+        },
+        max_tokens: {
+          type: 'integer',
+          description: 'Max output tokens per branch (default 2000).',
+        },
       },
     },
     output: {
@@ -61,9 +67,11 @@ export function apply(ctx: any) {
 
       const n = clamp(intOr(args?.branches, 3), 1, 8)
       const verifyCommand = stringOr(args?.verify, null)
+      const timeoutMs = clamp(intOr(args?.timeout_seconds, 120), 10, 600) * 1000
+      const maxTokens = clamp(intOr(args?.max_tokens, 2000), 256, 32000)
 
       const runner: Runner = (spec: VariationSpec) =>
-        forkAndRun(ctx, parent, exec.signal, spec)
+        forkAndRun(ctx, parent, exec.signal, spec, timeoutMs, maxTokens)
 
       const trajectories = await Promise.all(
         Array.from({ length: n }, (_, i) =>
@@ -104,19 +112,21 @@ async function forkAndRun(
   parent: any,
   signal: AbortSignal,
   spec: VariationSpec,
+  timeoutMs: number,
+  maxTokens: number,
 ): Promise<Trajectory> {
   const run = await ctx.subagents.start('fork', {
     label: `explore-${spec.variationIndex + 1}`,
     prompt: [{ type: 'text', text: spec.variationPrompt }],
     parent,
-    agentOptions: { maxTokens: 2000 },
-    signal: AbortSignal.any([signal, AbortSignal.timeout(BRANCH_TIMEOUT_MS)]),
+    agentOptions: { maxTokens },
+    signal: AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]),
   })
 
   const result = await Promise.race([
     run.result,
     new Promise<{ output: unknown[]; stopReason: string }>((resolve) => {
-      const t = setTimeout(() => resolve({ output: [], stopReason: 'timeout' }), BRANCH_TIMEOUT_MS + 15_000)
+      const t = setTimeout(() => resolve({ output: [], stopReason: 'timeout' }), timeoutMs + 15_000)
       if (t.unref) t.unref()
     }),
   ])

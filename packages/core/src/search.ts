@@ -5,6 +5,7 @@ import type {
   Runner,
   Trajectory,
   Verdict,
+  Verifier,
 } from './types'
 import { variationPrompt } from './types'
 
@@ -90,7 +91,7 @@ export async function bestOfN(run: Runner, config: SearchConfig): Promise<Search
 
   const specs = Array.from({ length: config.branchingFactor }, (_, i) => ({
     variationIndex: i,
-    variationPrompt: variationPrompt(config, i),
+    variationPrompt: variationPrompt(config.branchingFactor, i),
   }))
 
   const trajectories = await Promise.all(specs.map(run))
