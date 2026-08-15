@@ -11,7 +11,7 @@ import {
   type VariationSpec,
   type Verdict,
   type Verifier,
-} from '@dsh-explore/core'
+} from 'dsh-explore-core'
 import { randomUUID } from 'node:crypto'
 import { writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'

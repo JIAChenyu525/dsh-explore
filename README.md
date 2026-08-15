@@ -21,7 +21,10 @@ When you need more than one answer, `dsh-explore` forks your agent into **N para
 ## 🚀 Quick start
 
 ```sh
-# from a local checkout
+# from npm (recommended)
+dsh plugin --profile web add dsh-explore
+
+# or from a local checkout
 dsh plugin --profile web add ./packages/plugin
 
 # restart dsh web, then in a session ask the model:
@@ -71,7 +74,7 @@ dsh's own `subagent` tool forks children from `exec.agent` inside the agent loop
 - [x] M4 — winner diff + propose-mode + worktree verifier (v1)
 - [x] MCTS — real tree search (`mode: 'mcts'`, mid-trajectory branching)
 - [ ] live — worktree + MCTS end-to-end (needs live test)
-- [ ] M5 — npm publish + `dsh plugin add dsh-explore`
+- [x] M5 — npm publish (`dsh-explore` + `dsh-explore-core`) + `dsh plugin add dsh-explore`
 
 ## ⚠️ Status
 

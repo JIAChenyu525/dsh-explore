@@ -19,7 +19,7 @@ importers:
 
   packages/plugin:
     devDependencies:
-      '@dsh-explore/core':
+      dsh-explore-core:
         specifier: workspace:*
         version: link:../core
       esbuild:

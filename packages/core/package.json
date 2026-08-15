@@ -1,14 +1,11 @@
 {
-  "name": "@dsh-explore/core",
+  "name": "dsh-explore-core",
   "version": "0.1.0",
   "description": "Pure trajectory-search algorithms (best-of-N, MCTS, verdict, diff, patch) for dsh-explore",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": ["lib"],
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepare": "npm run build",

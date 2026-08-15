@@ -21,7 +21,10 @@
 ## 🚀 快速开始
 
 ```sh
-# 从本地 checkout 安装
+# 从 npm 安装（推荐）
+dsh plugin --profile web add dsh-explore
+
+# 或从本地 checkout 安装
 dsh plugin --profile web add ./packages/plugin
 
 # 重启 dsh web，然后在会话里对模型说：
@@ -71,7 +74,7 @@ dsh 自带的 `subagent` 工具在 agent loop 内部用 `exec.agent` fork 子智
 - [x] M4 —— 赢家 diff + propose 模式 + worktree 验证器（v1）
 - [x] MCTS —— 真树搜索（`mode: 'mcts'`，mid-trajectory 分叉）
 - [ ] live —— worktree + MCTS 端到端（需 live 测试）
-- [ ] M5 —— npm 发布 + `dsh plugin add dsh-explore`
+- [x] M5 —— npm 发布（`dsh-explore` + `dsh-explore-core`）+ `dsh plugin add dsh-explore`
 
 ## ⚠️ 状态
 
